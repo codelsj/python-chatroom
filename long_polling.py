@@ -12,22 +12,7 @@ import threading
 import json
 import uuid
 
-
 message = None
-
-class MessageQueue(Queue):
-    # for 多进程
-    pass
-
-
-class DotDict(dict):
-    # dict[name] -> dict.name
-    def __getattribute__(self, name):
-        try:
-            return self[name]
-        except:
-            return None
-
 
 class EventMap(dict):
     # 事件映射表
@@ -172,6 +157,7 @@ class ChatRequestHandler(BaseHTTPRequestHandler):
                 pass
         else:
             self._write_headers(404)
+        return
 
     def clear(self, client):
         self.sessioncookies.pop(client.id)
@@ -198,6 +184,7 @@ class ChatRequestHandler(BaseHTTPRequestHandler):
             self.wfile.write(res.encode())
         else:
             self._write_headers(404)
+        return
 
     @event_map.register_event('post')
     def post(self):
@@ -241,14 +228,15 @@ class ChatRequestHandler(BaseHTTPRequestHandler):
 
         try:
             return self.event_map[oper].__get__(self)()
-            # return self.event_map[oper](DotDict(vars()))
         except KeyError:
             pass
+        return
             
     def get_html(self, path):
         # 返回静态模版
         if path in ("/", "/chat", "/index.html"):
             return self.render('chat.html')
+        return ''
 
     def render(self, template):
         html = ''
@@ -298,17 +286,16 @@ class Message(object):
         return b'ok'
 
 class ChatThreadingMixIn(ThreadingMixIn):
- 
     daemon_threads = True
     pool = []
     MAX_NUMS = 128
 
     # 重写方法
     def process_request(self, request, client_address):
-        if len(pool) < self.MAX_NUMS:
+        if len(self.pool) < self.MAX_NUMS:
             t = threading.Thread(target = self.process_request_thread,
                                  args = (request, client_address))
-            pool.append(t)
+            self.pool.append(t)
             t.daemon = self.daemon_threads
             t.start()
 
@@ -325,7 +312,7 @@ def start_server(handler, host, port):
         server = ChatHTTPServer((host, port), handler)
         server.serve_forever()
     except KeyboardInterrupt:
-        server.serve_close()
+        server.server_close()
 
 
 if __name__ == '__main__':
